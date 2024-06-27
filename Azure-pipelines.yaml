@@ -1,0 +1,125 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  registry: 'yourdockerhub'
+  imageName: 'yourimagename'
+
+stages:
+- stage: Lint
+  jobs:
+  - job: Lint
+    steps:
+    - task: Gradle@2
+      inputs:
+        workingDirectory: ''
+        gradleWrapperFile: 'gradlew'
+        options: 'check'
+        tasks: 'lint'
+        publishJUnitResults: false
+
+- stage: UnitTest
+  jobs:
+  - job: UnitTest
+    steps:
+    - task: Gradle@2
+      inputs:
+        workingDirectory: ''
+        gradleWrapperFile: 'gradlew'
+        options: ''
+        tasks: 'test'
+        publishJUnitResults: true
+        testResultsFiles: '**/build/test-results/test/TEST-*.xml'
+
+- stage: SonarQube
+  jobs:
+  - job: SonarQube
+    steps:
+    - task: SonarQubePrepare@4
+      inputs:
+        SonarQube: 'SonarQubeServiceEndpoint'
+        scannerMode: 'Other'
+        configMode: 'manual'
+        cliProjectKey: 'your_project_key'
+        cliProjectName: 'your_project_name'
+        cliSources: 'src'
+    - task: Gradle@2
+      inputs:
+        workingDirectory: ''
+        gradleWrapperFile: 'gradlew'
+        options: ''
+        tasks: 'sonarqube'
+    - task: SonarQubeAnalyze@4
+    - task: SonarQubePublish@4
+      inputs:
+        pollingTimeoutSec: '300'
+
+- stage: BuildImage
+  jobs:
+  - job: BuildImage
+    steps:
+    - task: Docker@2
+      inputs:
+        containerRegistry: 'DockerHubServiceConnection'
+        repository: '$(registry)/$(imageName)'
+        command: 'build'
+        Dockerfile: '**/Dockerfile'
+        tags: |
+          $(Build.BuildId)
+
+- stage: PushImage
+  jobs:
+  - job: PushImage
+    steps:
+    - task: Docker@2
+      inputs:
+        containerRegistry: 'DockerHubServiceConnection'
+        repository: '$(registry)/$(imageName)'
+        command: 'push'
+        tags: |
+          $(Build.BuildId)
+
+- stage: PullImage
+  jobs:
+  - job: PullImage
+    steps:
+    - task: Docker@2
+      inputs:
+        containerRegistry: 'DockerHubServiceConnection'
+        repository: '$(registry)/$(imageName)'
+        command: 'pull'
+        tags: |
+          $(Build.BuildId)
+
+- stage: DeployToK8s
+  jobs:
+  - deployment: Deploy
+    environment: 'aws-k8s-cluster'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: Kubernetes@1
+            inputs:
+              connectionType: 'Kubernetes Service Connection'
+              kubernetesServiceEndpoint: 'YourKubernetesServiceConnection'
+              namespace: 'default'
+              command: 'apply'
+              useConfigurationFile: true
+              configuration: 'k8s/deployment.yaml'
+
+- stage: CreateIngress
+  jobs:
+  - job: CreateIngress
+    steps:
+    - task: Kubernetes@1
+      inputs:
+        connectionType: 'Kubernetes Service Connection'
+        kubernetesServiceEndpoint: 'YourKubernetesServiceConnection'
+        namespace: 'default'
+        command: 'apply'
+        useConfigurationFile: true
+        configuration: 'k8s/ingress.yaml'
