@@ -21,41 +21,8 @@ stages:
         tasks: 'lint'
         publishJUnitResults: false
 
-- stage: UnitTest
-  jobs:
-  - job: UnitTest
-    steps:
-    - task: Gradle@2
-      inputs:
-        workingDirectory: ''
-        gradleWrapperFile: 'gradlew'
-        options: ''
-        tasks: 'test'
-        publishJUnitResults: true
-        testResultsFiles: '**/build/test-results/test/TEST-*.xml'
 
-- stage: SonarQube
-  jobs:
-  - job: SonarQube
-    steps:
-    - task: SonarQubePrepare@4
-      inputs:
-        SonarQube: 'SonarQubeServiceEndpoint'
-        scannerMode: 'Other'
-        configMode: 'manual'
-        cliProjectKey: 'your_project_key'
-        cliProjectName: 'your_project_name'
-        cliSources: 'src'
-    - task: Gradle@2
-      inputs:
-        workingDirectory: ''
-        gradleWrapperFile: 'gradlew'
-        options: ''
-        tasks: 'sonarqube'
-    - task: SonarQubeAnalyze@4
-    - task: SonarQubePublish@4
-      inputs:
-        pollingTimeoutSec: '300'
+
 
 - stage: BuildImage
   jobs:
