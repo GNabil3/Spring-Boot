@@ -1,49 +1,35 @@
 trigger:
-- main
+- dev
 
 pool:
-  vmImage: 'ubuntu-latest'
+  name: Default
+  vmImage: 'latest'
 
 variables:
-  registry: 'yourdockerhub'
-  imageName: 'yourimagename'
+  registry: 'georgenabilfawzy'
+  imageName: 'spring_boot'
 
 stages:
-- stage: Lint
-  jobs:
-  - job: Lint
-    steps:
-    - task: Gradle@2
-      inputs:
-        workingDirectory: ''
-        gradleWrapperFile: 'gradlew'
-        options: 'check'
-        tasks: 'lint'
-        publishJUnitResults: false
-
-
-
 
 - stage: BuildImage
   jobs:
   - job: BuildImage
     steps:
-    - task: Docker@2
-      inputs:
-        containerRegistry: 'DockerHubServiceConnection'
-        repository: '$(registry)/$(imageName)'
-        command: 'build'
-        Dockerfile: '**/Dockerfile'
-        tags: |
-          $(Build.BuildId)
+    - checkout: self
+    - script: |
+        cd $(Build.SourcesDirectory)
+        echo "Current directory: $(pwd)"
+        docker build -t '$(imageName):$(Build.BuildId)' .
+      displayName: 'Build an image of springboot project'
 
 - stage: PushImage
   jobs:
   - job: PushImage
     steps:
+    - checkout: self
     - task: Docker@2
       inputs:
-        containerRegistry: 'DockerHubServiceConnection'
+        containerRegistry: 'azurePipeline_docker'
         repository: '$(registry)/$(imageName)'
         command: 'push'
         tags: |
@@ -53,9 +39,10 @@ stages:
   jobs:
   - job: PullImage
     steps:
+    - checkout: self
     - task: Docker@2
       inputs:
-        containerRegistry: 'DockerHubServiceConnection'
+        containerRegistry: 'azurePipeline_docker'
         repository: '$(registry)/$(imageName)'
         command: 'pull'
         tags: |
@@ -69,10 +56,11 @@ stages:
       runOnce:
         deploy:
           steps:
+          - checkout: self
           - task: Kubernetes@1
             inputs:
               connectionType: 'Kubernetes Service Connection'
-              kubernetesServiceEndpoint: 'YourKubernetesServiceConnection'
+              kubernetesServiceEndpoint: 'azurePipeline_EKS'
               namespace: 'default'
               command: 'apply'
               useConfigurationFile: true
@@ -82,10 +70,11 @@ stages:
   jobs:
   - job: CreateIngress
     steps:
+    - checkout: self
     - task: Kubernetes@1
       inputs:
         connectionType: 'Kubernetes Service Connection'
-        kubernetesServiceEndpoint: 'YourKubernetesServiceConnection'
+        kubernetesServiceEndpoint: 'azurePipeline_EKS'
         namespace: 'default'
         command: 'apply'
         useConfigurationFile: true
